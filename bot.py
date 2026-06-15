@@ -1,5 +1,4 @@
 import logging
-import os
 
 from telegram import Update
 from telegram.ext import (
@@ -10,37 +9,31 @@ from telegram.ext import (
     filters,
 )
 
-import claude_client as ai
 import database as db
 
 logger = logging.getLogger(__name__)
 
-def _chat_id() -> int:
-    return int(os.getenv("TELEGRAM_CHAT_ID", "0"))
-
 
 async def send(app: Application, text: str):
-    await app.bot.send_message(chat_id=_chat_id(), text=text)
+    chat_id = app.bot_data["chat_id"]
+    await app.bot.send_message(chat_id=chat_id, text=text)
 
-
-# --- Handlers de comandos ---
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "¡Hola! Soy tu asistente diario espiritual.\n\n"
-        "Te voy a acompañar cada mañana a las 8:00, haré un seguimiento a las 8:30 "
-        "y revisaremos el día juntos a las 23:00.\n\n"
         "Comandos disponibles:\n"
         "/tareas — ver las tareas de hoy\n"
         "/pendientes — ver tareas pendientes\n"
         "/agregar <tarea> — agregar una tarea\n"
-        "/manana — disparar el mensaje de mañana ahora (para probar)\n"
-        "/noche — disparar la revisión nocturna ahora (para probar)"
+        "/manana — disparar el mensaje de mañana ahora\n"
+        "/noche — disparar la revisión nocturna ahora"
     )
 
 
 async def cmd_tareas(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    tasks = db.get_tasks()
+    bot_id = ctx.bot_data["bot_id"]
+    tasks = db.get_tasks(bot_id)
     if not tasks:
         await update.message.reply_text("No hay tareas registradas para hoy.")
         return
@@ -54,7 +47,8 @@ async def cmd_tareas(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_pendientes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    pending = db.get_pending()
+    bot_id = ctx.bot_data["bot_id"]
+    pending = db.get_pending(bot_id)
     if not pending:
         await update.message.reply_text("¡No tenés tareas pendientes! Excelente.")
         return
@@ -64,11 +58,12 @@ async def cmd_pendientes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_agregar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    bot_id = ctx.bot_data["bot_id"]
     text = " ".join(ctx.args).strip()
     if not text:
         await update.message.reply_text("Usá: /agregar <descripción de la tarea>")
         return
-    db.add_tasks([text])
+    db.add_tasks(bot_id, [text])
     await update.message.reply_text(f'Tarea agregada: "{text}"')
 
 
@@ -80,16 +75,15 @@ async def cmd_noche(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await night_checkin(ctx.application)
 
 
-# --- Mensajes libres del usuario ---
-
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    bot_id = ctx.bot_data["bot_id"]
     user_text = update.message.text.strip()
-    state = db.get_state()
+    state = db.get_state(bot_id)
 
     if state == "waiting_morning_plan":
-        await _process_morning_plan(update, user_text)
+        await _process_morning_plan(update, ctx, user_text)
     elif state == "waiting_night_review":
-        await _process_night_review(update, user_text)
+        await _process_night_review(update, ctx, user_text)
     else:
         await update.message.reply_text(
             "Recibido. Si querés agregar una tarea usá /agregar, "
@@ -97,10 +91,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
 
 
-async def _process_morning_plan(update: Update, user_text: str):
+async def _process_morning_plan(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_text: str):
+    bot_id = ctx.bot_data["bot_id"]
+    claude = ctx.bot_data["claude"]
     await update.message.reply_text("Procesando tu plan del día...")
 
-    tasks = ai.parse_tasks_from_text(user_text)
+    tasks = claude.parse_tasks_from_text(user_text)
     if not tasks:
         await update.message.reply_text(
             "No pude identificar tareas. "
@@ -108,9 +104,9 @@ async def _process_morning_plan(update: Update, user_text: str):
         )
         return
 
-    db.add_tasks(tasks)
-    db.save_morning_plan(user_text)
-    db.set_state("idle")
+    db.add_tasks(bot_id, tasks)
+    db.save_morning_plan(bot_id, user_text)
+    db.set_state(bot_id, "idle")
 
     lines = "\n".join(f"○ {t}" for t in tasks)
     await update.message.reply_text(
@@ -119,63 +115,64 @@ async def _process_morning_plan(update: Update, user_text: str):
     )
 
 
-async def _process_night_review(update: Update, user_text: str):
+async def _process_night_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE, user_text: str):
+    bot_id = ctx.bot_data["bot_id"]
+    claude = ctx.bot_data["claude"]
     await update.message.reply_text("Cerrando el día...")
 
-    tasks = db.get_tasks()
+    tasks = db.get_tasks(bot_id)
     tasks_dicts = [dict(t) for t in tasks]
 
-    result = ai.parse_night_review(user_text, tasks_dicts)
+    result = claude.parse_night_review(user_text, tasks_dicts)
 
-    done_ids = result.get("done", [])
-    pending_ids = result.get("pending", [])
-
-    for tid in done_ids:
+    for tid in result.get("done", []):
         db.update_task_status(tid, "done")
-    # Los pending ya están en pending, no hace falta actualizar
 
-    db.save_night_review(user_text)
-    db.set_state("idle")
+    db.save_night_review(bot_id, user_text)
+    db.set_state(bot_id, "idle")
 
-    closing = ai.get_closing_message(len(done_ids), len(pending_ids))
+    closing = claude.get_closing_message(
+        len(result.get("done", [])), len(result.get("pending", []))
+    )
     await update.message.reply_text(closing)
 
 
-# --- Rutinas programadas ---
-
 async def morning_checkin(app: Application):
-    db.carry_over_pending()
-    pending_yesterday = [t["text"] for t in db.get_pending(db.yesterday())]
-    # Los de ayer ya fueron traídos, buscar los que quedaron en hoy por carry_over
-    carried = [
-        t["text"] for t in db.get_tasks()
-        if t["status"] == "carried_over"
-    ]
+    bot_id = app.bot_data["bot_id"]
+    claude = app.bot_data["claude"]
 
-    message = ai.get_morning_message(carried)
+    db.carry_over_pending(bot_id)
+    carried = [t["text"] for t in db.get_tasks(bot_id) if t["status"] == "carried_over"]
+
+    message = claude.get_morning_message(carried)
     await send(app, message)
-    db.set_state("waiting_morning_plan")
+    db.set_state(bot_id, "waiting_morning_plan")
 
 
 async def followup_checkin(app: Application):
-    state = db.get_state()
-    tasks_today = db.get_tasks()
+    bot_id = app.bot_data["bot_id"]
+    claude = app.bot_data["claude"]
+
+    tasks_today = db.get_tasks(bot_id)
     has_tasks = any(t["status"] != "carried_over" for t in tasks_today)
 
-    message = ai.get_followup_message(has_tasks)
+    message = claude.get_followup_message(has_tasks)
     await send(app, message)
 
     if not has_tasks:
-        db.set_state("waiting_morning_plan")
+        db.set_state(bot_id, "waiting_morning_plan")
 
 
 async def night_checkin(app: Application):
-    tasks = db.get_tasks()
+    bot_id = app.bot_data["bot_id"]
+    claude = app.bot_data["claude"]
+
+    tasks = db.get_tasks(bot_id)
     tasks_dicts = [dict(t) for t in tasks]
 
-    message = ai.get_night_message(tasks_dicts)
+    message = claude.get_night_message(tasks_dicts)
     await send(app, message)
-    db.set_state("waiting_night_review")
+    db.set_state(bot_id, "waiting_night_review")
 
 
 def register_handlers(app: Application):
