@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar bot' if bot else 'Nuevo bot' }} — Daily Agent{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ 'Editar bot' if bot else 'Nuevo bot' }}</h1>
+    <a href="/dashboard" class="btn btn-sm btn-secondary">← Volver</a>
+</div>
+
+<form action="{{ '/bots/' ~ bot.id ~ '/update' if bot else '/bots/new' }}" method="post" class="config-form">
+    <div class="form-group">
+        <label for="name">Nombre del bot</label>
+        <input type="text" id="name" name="name"
+               value="{{ bot.name if bot else '' }}" required
+               placeholder="Mi bot espiritual">
+    </div>
+
+    <div class="form-group">
+        <label for="telegram_token">Token de Telegram</label>
+        <input type="password" id="telegram_token" name="telegram_token"
+               {{ 'placeholder="Dejar vacío para no cambiar"' if bot else 'required placeholder="123456789:ABC-..."' }}>
+        <small>Obtenelo en @BotFather en Telegram.</small>
+    </div>
+
+    <div class="form-group">
+        <label for="anthropic_api_key">API Key de Claude (Anthropic)</label>
+        <input type="password" id="anthropic_api_key" name="anthropic_api_key"
+               {{ 'placeholder="Dejar vacío para no cambiar"' if bot else 'required placeholder="sk-ant-..."' }}>
+    </div>
+
+    <div class="form-group">
+        <label for="telegram_chat_id">Chat ID de Telegram</label>
+        <input type="text" id="telegram_chat_id" name="telegram_chat_id"
+               value="{{ bot.telegram_chat_id if bot else '' }}" required
+               placeholder="123456789">
+        <small>Obtenelo hablándole a @userinfobot en Telegram.</small>
+    </div>
+
+    <div class="form-group">
+        <label for="timezone">Zona horaria</label>
+        <input type="text" id="timezone" name="timezone"
+               value="{{ bot.timezone if bot else 'America/Argentina/Salta' }}" required
+               placeholder="America/Argentina/Buenos_Aires">
+    </div>
+
+    <h3>Horarios de check-in</h3>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="morning_time">Mensaje de mañana</label>
+            <input type="time" id="morning_time" name="morning_time"
+                   value="{{ bot.morning_time if bot else '08:00' }}" required>
+        </div>
+        <div class="form-group">
+            <label for="followup_time">Seguimiento</label>
+            <input type="time" id="followup_time" name="followup_time"
+                   value="{{ bot.followup_time if bot else '08:30' }}" required>
+        </div>
+        <div class="form-group">
+            <label for="night_time">Revisión nocturna</label>
+            <input type="time" id="night_time" name="night_time"
+                   value="{{ bot.night_time if bot else '23:00' }}" required>
+        </div>
+    </div>
+
+    <button type="submit" class="btn">{{ 'Guardar cambios' if bot else 'Crear bot' }}</button>
+</form>
+{% endblock %}
