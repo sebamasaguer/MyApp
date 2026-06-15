@@ -1,17 +1,15 @@
 import logging
 import os
 import threading
+from contextlib import asynccontextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from dotenv import load_dotenv
 
-load_dotenv()  # debe ser lo primero, antes de cualquier import que lea os.getenv
-
-from telegram.ext import Application
+load_dotenv()
 
 import database as db
-from bot import register_handlers
-from scheduler import setup_scheduler
+from bot_manager import BotManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,44 +29,62 @@ class _HealthHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, *args):
-        pass  # silenciar logs de acceso
+        pass
 
 
 def _start_health_server(port: int):
     HTTPServer(("0.0.0.0", port), _HealthHandler).serve_forever()
 
 
-def main():
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
-        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
-
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    if not chat_id:
-        raise ValueError("TELEGRAM_CHAT_ID no está configurado en .env")
-
+@asynccontextmanager
+async def lifespan(app):
     db.init_db()
-    logger.info("Base de datos inicializada.")
+
+    webhook_base = os.getenv("WEBHOOK_BASE_URL", "https://myapp.saltia.com.ar")
+    manager = BotManager(webhook_base_url=webhook_base)
+    await manager.load_all()
+    app.state.bot_manager = manager
+
+    yield
+
+    await manager.shutdown_all()
+
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+app = FastAPI(lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+from routers import auth as auth_router
+from routers import bots as bots_router
+from routers import webhook as webhook_router
+
+app.include_router(auth_router.router)
+app.include_router(bots_router.router)
+app.include_router(webhook_router.router)
+
+templates = Jinja2Templates(directory="templates")
+
+
+@app.get("/")
+async def root():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard")
+
+
+def main():
+    import uvicorn
 
     health_port = int(os.getenv("HEALTH_PORT", "8081"))
-    threading.Thread(target=_start_health_server, args=(health_port,), daemon=True).start()
-    logger.info("Health check disponible en puerto %s /health", health_port)
-
-    app = Application.builder().token(token).build()
-    register_handlers(app)
-    setup_scheduler(app)
+    threading.Thread(
+        target=_start_health_server, args=(health_port,), daemon=True
+    ).start()
+    logger.info("Health check en puerto %s", health_port)
 
     port = int(os.getenv("PORT", "8080"))
-    webhook_url = f"https://myapp.saltia.com.ar/{token}"
-
-    logger.info("Agente diario iniciado en modo webhook. Puerto: %s", port)
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=port,
-        url_path=token,
-        webhook_url=webhook_url,
-        allowed_updates=["message"],
-    )
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
