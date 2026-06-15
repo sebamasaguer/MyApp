@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ bot.name }} — Daily Agent{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ bot.name }}</h1>
+    <a href="/dashboard" class="btn btn-sm btn-secondary">← Dashboard</a>
+</div>
+
+<div class="detail-grid">
+    <div class="status-panel">
+        <h2>Estado</h2>
+        <span class="status-badge {{ 'active' if bot.running else 'inactive' }} large">
+            {{ '● Activo' if bot.running else '○ Detenido' }}
+        </span>
+
+        {% if bot.last_activity_at %}
+        <p style="font-size:13px; color:#6b7280; margin-bottom:8px;">
+            Última actividad: {{ bot.last_activity_at }}
+        </p>
+        {% endif %}
+
+        {% if bot.last_error %}
+        <div class="alert alert-error" style="font-size:13px;">{{ bot.last_error }}</div>
+        {% endif %}
+
+        <div class="action-buttons">
+            {% if bot.running %}
+            <form action="/bots/{{ bot.id }}/stop" method="post">
+                <button type="submit" class="btn btn-danger">Detener bot</button>
+            </form>
+            <button class="btn btn-secondary"
+                    hx-post="/bots/{{ bot.id }}/trigger/morning"
+                    hx-swap="none"
+                    hx-confirm="¿Disparar el mensaje de mañana ahora?">
+                Probar mañana
+            </button>
+            <button class="btn btn-secondary"
+                    hx-post="/bots/{{ bot.id }}/trigger/night"
+                    hx-swap="none"
+                    hx-confirm="¿Disparar la revisión nocturna ahora?">
+                Probar noche
+            </button>
+            {% else %}
+            <form action="/bots/{{ bot.id }}/start" method="post">
+                <button type="submit" class="btn btn-success">Iniciar bot</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="tasks-panel">
+        <h2>Tareas de hoy</h2>
+        {% if not tasks %}
+        <p class="empty">No hay tareas registradas para hoy.</p>
+        {% else %}
+        <ul class="task-list">
+            {% for task in tasks %}
+            <li class="task {{ task.status }}">
+                {% if task.status == 'done' %}✓
+                {% elif task.status == 'carried_over' %}↻
+                {% else %}○{% endif %}
+                {{ task.text }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+</div>
+
+<div class="config-section">
+    <h2>Configuración</h2>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:14px; color:#6b7280; margin-bottom:16px;">
+        <span>🕐 Mañana: {{ bot.morning_time }}</span>
+        <span>🕑 Seguimiento: {{ bot.followup_time }}</span>
+        <span>🌙 Noche: {{ bot.night_time }}</span>
+        <span>🌍 {{ bot.timezone }}</span>
+    </div>
+    <a href="/bots/{{ bot.id }}/edit" class="btn btn-sm btn-secondary">Editar configuración</a>
+</div>
+{% endblock %}
