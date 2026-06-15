@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Daily Agent{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Mis bots</h1>
+    <a href="/bots/new" class="btn">+ Nuevo bot</a>
+</div>
+
+{% if not bots %}
+<div class="empty-state">
+    <p>No tenés bots configurados todavía.</p>
+    <a href="/bots/new" class="btn">Crear mi primer bot</a>
+</div>
+{% else %}
+<div class="bot-list">
+    {% for bot in bots %}
+    <div class="bot-card">
+        <div class="bot-info">
+            <h2>{{ bot.name }}</h2>
+            <span class="status-badge {{ 'active' if bot.running else 'inactive' }}">
+                {{ '● Activo' if bot.running else '○ Detenido' }}
+            </span>
+            {% if bot.last_activity_at %}
+            <span class="last-activity">Última actividad: {{ bot.last_activity_at }}</span>
+            {% endif %}
+        </div>
+        <div class="bot-actions">
+            <a href="/bots/{{ bot.id }}" class="btn btn-sm btn-secondary">Detalle</a>
+            {% if bot.running %}
+            <form action="/bots/{{ bot.id }}/stop" method="post">
+                <button type="submit" class="btn btn-sm btn-danger">Detener</button>
+            </form>
+            {% else %}
+            <form action="/bots/{{ bot.id }}/start" method="post">
+                <button type="submit" class="btn btn-sm btn-success">Iniciar</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
