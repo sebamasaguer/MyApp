@@ -1,8 +1,9 @@
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, timedelta
 
-DB_PATH = "daily_agent.db"
+DB_PATH = os.getenv("DB_PATH", "/app/data/daily_agent.db")
 
 
 @contextmanager
