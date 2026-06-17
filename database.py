@@ -264,6 +264,20 @@ def get_recent_logs(bot_id: int, limit: int = 7) -> list:
         ).fetchall()
 
 
+def get_month_summary(bot_id: int, year: int, month: int) -> dict:
+    prefix = f"{year:04d}-{month:02d}-%"
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT date, COUNT(*) as total, SUM(status = 'done') as done "
+            "FROM tasks WHERE bot_id = ? AND date LIKE ? GROUP BY date",
+            (bot_id, prefix),
+        ).fetchall()
+    return {
+        row["date"]: {"total": row["total"], "done": row["done"] or 0}
+        for row in rows
+    }
+
+
 def migrate_existing_data(new_bot_id: int) -> None:
     with get_conn() as conn:
         conn.execute(

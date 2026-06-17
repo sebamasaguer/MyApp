@@ -66,3 +66,27 @@ def test_carry_over_pending(db):
     db.carry_over_pending(bid)
     today_tasks = db.get_tasks(bid)
     assert any(t["text"] == "Old task" for t in today_tasks)
+
+def test_get_month_summary(db):
+    uid = db.create_user("test@example.com", "h", "admin")
+    bid = db.create_bot(uid, "B", "t", "k", "1", "UTC", "08:00", "08:30", "23:00")
+
+    db.add_tasks(bid, ["T1", "T2"], task_date="2026-06-10")
+    task_id = db.get_tasks(bid, "2026-06-10")[0]["id"]
+    db.update_task_status(task_id, "done")
+
+    db.add_tasks(bid, ["T3"], task_date="2026-06-15")
+    task_id_2 = db.get_tasks(bid, "2026-06-15")[0]["id"]
+    db.update_task_status(task_id_2, "done")
+
+    summary = db.get_month_summary(bid, 2026, 6)
+
+    assert "2026-06-10" in summary
+    assert summary["2026-06-10"]["total"] == 2
+    assert summary["2026-06-10"]["done"] == 1
+
+    assert "2026-06-15" in summary
+    assert summary["2026-06-15"]["total"] == 1
+    assert summary["2026-06-15"]["done"] == 1
+
+    assert "2026-06-05" not in summary
