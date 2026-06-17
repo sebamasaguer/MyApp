@@ -129,3 +129,71 @@ small { font-size: 12px; color: var(--text-muted); margin-top: 3px; display: blo
 .config-section h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
 
 .empty { color: var(--text-muted); font-size: 14px; }
+
+/* Calendar history */
+.calendar-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.calendar-month-label { font-size: 16px; font-weight: 600; }
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-header {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 0 8px;
+}
+.cal-day {
+  text-align: center;
+  padding: 8px 4px;
+  border-radius: 6px;
+  font-size: 13px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-day.empty { background: transparent; }
+.cal-day.green  { background: #dcfce7; color: #15803d; font-weight: 500; cursor: pointer; }
+.cal-day.green:hover  { background: #bbf7d0; }
+.cal-day.yellow { background: #fef9c3; color: #a16207; font-weight: 500; cursor: pointer; }
+.cal-day.yellow:hover { background: #fef08a; }
+.cal-day.red    { background: #fef2f2; color: #dc2626; font-weight: 500; cursor: pointer; }
+.cal-day.red:hover    { background: #fecaca; }
+.cal-day.gray   { background: #f3f4f6; color: var(--text-muted); }
+.cal-day.future { color: #d1d5db; }
+.cal-day.today  { outline: 2px solid var(--primary); outline-offset: -2px; }
+.day-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  min-height: 20px;
+}
+.day-panel:empty { display: none; }
+.calendar-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.legend-item.green  { color: #15803d; }
+.legend-item.yellow { color: #a16207; }
+.legend-item.red    { color: #dc2626; }
+.legend-item.gray   { color: var(--text-muted); }

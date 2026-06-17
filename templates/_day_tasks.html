@@ -1,0 +1,15 @@
+{% if tasks %}
+<h2 style="font-size:15px;font-weight:600;margin-bottom:12px;">{{ date_label }}</h2>
+<ul class="task-list">
+    {% for task in tasks %}
+    <li class="{{ task.status }}">
+        {% if task.status == 'done' %}✓
+        {% elif task.status == 'carried_over' %}↻
+        {% else %}○{% endif %}
+        {{ task.text }}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="empty">No hay tareas registradas para este día.</p>
+{% endif %}

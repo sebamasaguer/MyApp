@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Historial — {{ bot.name }} — Daily Agent{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Historial — {{ bot.name }}</h1>
+    <a href="/bots/{{ bot.id }}" class="btn btn-sm btn-secondary">← Volver al bot</a>
+</div>
+
+<div class="calendar-card">
+    <div class="calendar-nav">
+        <a href="/bots/{{ bot.id }}/historial?month={{ prev_month }}" class="btn btn-sm btn-secondary">← {{ prev_month_label }}</a>
+        <strong class="calendar-month-label">{{ month_label }}</strong>
+        {% if next_month %}
+        <a href="/bots/{{ bot.id }}/historial?month={{ next_month }}" class="btn btn-sm btn-secondary">{{ next_month_label }} →</a>
+        {% else %}
+        <span class="btn btn-sm btn-secondary" style="opacity:0.35;cursor:default;pointer-events:none;">{{ next_month_label }} →</span>
+        {% endif %}
+    </div>
+
+    <div class="calendar-grid">
+        <div class="cal-header">L</div>
+        <div class="cal-header">M</div>
+        <div class="cal-header">M</div>
+        <div class="cal-header">J</div>
+        <div class="cal-header">V</div>
+        <div class="cal-header">S</div>
+        <div class="cal-header">D</div>
+
+        {% for week in calendar_weeks %}
+            {% for day in week %}
+                {% if day.day is none %}
+                    <div class="cal-day empty"></div>
+                {% elif day.clickable %}
+                    <div class="cal-day {{ day.color }}{% if day.is_today %} today{% endif %}"
+                         hx-get="/bots/{{ bot.id }}/historial/day?day_date={{ day.date_str }}"
+                         hx-target="#day-panel"
+                         hx-swap="innerHTML">
+                        {{ day.day }}
+                    </div>
+                {% else %}
+                    <div class="cal-day {{ day.color }}{% if day.is_today %} today{% endif %}">
+                        {{ day.day }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+    </div>
+</div>
+
+<div id="day-panel" class="day-panel"></div>
+
+<div class="calendar-legend">
+    <span class="legend-item green">● Completado</span>
+    <span class="legend-item yellow">● Parcial</span>
+    <span class="legend-item red">● Sin completar</span>
+    <span class="legend-item gray">● Sin tareas</span>
+</div>
+{% endblock %}
