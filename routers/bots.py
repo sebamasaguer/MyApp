@@ -1,3 +1,6 @@
+import calendar
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -25,6 +28,65 @@ def _can_access_bot(user, bot) -> bool:
     if not user or not bot:
         return False
     return bot["user_id"] == user["id"] or user["role"] == "admin"
+
+
+_DAYS_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+_MONTHS_ES = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+    5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+    9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+}
+_MONTHS_ES_CAP = {k: v.capitalize() for k, v in _MONTHS_ES.items()}
+
+
+def _build_calendar_weeks(year: int, month: int, summary: dict, today: date) -> list:
+    weeks = []
+    for week in calendar.monthcalendar(year, month):
+        days = []
+        for day_num in week:
+            if day_num == 0:
+                days.append({"day": None, "color": "empty", "date_str": None, "clickable": False, "is_today": False})
+            else:
+                d = date(year, month, day_num)
+                date_str = d.isoformat()
+                is_today = d == today
+                if d > today:
+                    color, clickable = "future", False
+                elif date_str in summary:
+                    info = summary[date_str]
+                    done, total = info["done"], info["total"]
+                    if done == total:
+                        color = "green"
+                    elif done > 0:
+                        color = "yellow"
+                    else:
+                        color = "red"
+                    clickable = True
+                else:
+                    color, clickable = "gray", False
+                days.append({"day": day_num, "color": color, "date_str": date_str,
+                             "clickable": clickable, "is_today": is_today})
+        weeks.append(days)
+    return weeks
+
+
+def _month_label(year: int, month: int) -> str:
+    return f"{_MONTHS_ES_CAP[month]} {year}"
+
+
+def _adjacent_months(year: int, month: int) -> tuple:
+    first = date(year, month, 1)
+    prev = first - timedelta(days=1)
+    if month == 12:
+        nxt_year, nxt_month = year + 1, 1
+    else:
+        nxt_year, nxt_month = year, month + 1
+    return (prev.year, prev.month), (nxt_year, nxt_month)
+
+
+def _format_date_es(date_str: str) -> str:
+    d = date.fromisoformat(date_str)
+    return f"{_DAYS_ES[d.weekday()]} {d.day} de {_MONTHS_ES[d.month]} {d.year}"
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -253,3 +315,56 @@ async def trigger_checkin(bot_id: int, check_type: str, request: Request):
         await night_checkin(app_instance)
 
     return {"ok": True}
+
+
+@router.get("/bots/{bot_id}/historial/day", response_class=HTMLResponse)
+async def bot_historial_day(bot_id: int, day_date: str, request: Request):
+    user = _get_user(request)
+    if not user:
+        return HTMLResponse("<p>No autorizado</p>", status_code=401)
+    bot = db.get_bot(bot_id)
+    if not _can_access_bot(user, bot):
+        return HTMLResponse("<p>No encontrado</p>", status_code=404)
+
+    tasks = db.get_tasks(bot_id, task_date=day_date)
+    return templates.TemplateResponse("_day_tasks.html", {
+        "request": request,
+        "date_label": _format_date_es(day_date),
+        "tasks": [dict(t) for t in tasks],
+    })
+
+
+@router.get("/bots/{bot_id}/historial", response_class=HTMLResponse)
+async def bot_historial(bot_id: int, request: Request, month: str = ""):
+    user = _get_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    bot = db.get_bot(bot_id)
+    if not _can_access_bot(user, bot):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    today = date.today()
+    if month:
+        try:
+            year, mon = map(int, month.split("-"))
+        except ValueError:
+            year, mon = today.year, today.month
+    else:
+        year, mon = today.year, today.month
+
+    summary = db.get_month_summary(bot_id, year, mon)
+    (prev_year, prev_mon), (next_year, next_mon) = _adjacent_months(year, mon)
+
+    can_go_next = (year, mon) < (today.year, today.month)
+
+    return templates.TemplateResponse("bot_historial.html", {
+        "request": request,
+        "user": dict(user),
+        "bot": dict(bot),
+        "calendar_weeks": _build_calendar_weeks(year, mon, summary, today),
+        "month_label": _month_label(year, mon),
+        "prev_month": f"{prev_year}-{prev_mon:02d}",
+        "prev_month_label": _month_label(prev_year, prev_mon),
+        "next_month": f"{next_year}-{next_mon:02d}" if can_go_next else None,
+        "next_month_label": _month_label(next_year, next_mon),
+    })
