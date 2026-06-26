@@ -1,7 +1,9 @@
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+
+import pytz
 
 
 @contextmanager
@@ -73,6 +75,19 @@ def today() -> str:
 
 def yesterday() -> str:
     return (date.today() - timedelta(days=1)).isoformat()
+
+
+def _bot_date(bot_id: int, delta_days: int = 0) -> str:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT timezone FROM bots WHERE id = ?", (bot_id,)
+        ).fetchone()
+    tz_str = row["timezone"] if row else "UTC"
+    tz = pytz.timezone(tz_str)
+    d = datetime.now(tz).date()
+    if delta_days:
+        d += timedelta(days=delta_days)
+    return d.isoformat()
 
 
 # --- Usuarios ---
@@ -172,7 +187,7 @@ def update_bot_error(bot_id: int, error: str | None) -> None:
 
 def add_tasks(bot_id: int, task_texts: list[str],
               task_date: str | None = None) -> None:
-    d = task_date or today()
+    d = task_date or _bot_date(bot_id)
     with get_conn() as conn:
         conn.executemany(
             "INSERT INTO tasks (bot_id, date, text) VALUES (?, ?, ?)",
@@ -181,7 +196,7 @@ def add_tasks(bot_id: int, task_texts: list[str],
 
 
 def get_tasks(bot_id: int, task_date: str | None = None) -> list:
-    d = task_date or today()
+    d = task_date or _bot_date(bot_id)
     with get_conn() as conn:
         return conn.execute(
             "SELECT * FROM tasks WHERE bot_id = ? AND date = ? ORDER BY id",
@@ -190,7 +205,7 @@ def get_tasks(bot_id: int, task_date: str | None = None) -> list:
 
 
 def get_pending(bot_id: int, task_date: str | None = None) -> list:
-    d = task_date or today()
+    d = task_date or _bot_date(bot_id)
     with get_conn() as conn:
         return conn.execute(
             "SELECT * FROM tasks WHERE bot_id = ? AND date = ? AND status = 'pending' ORDER BY id",
@@ -204,21 +219,23 @@ def update_task_status(task_id: int, status: str) -> None:
 
 
 def carry_over_pending(bot_id: int) -> None:
-    pending = get_pending(bot_id, yesterday())
+    yesterday_str = _bot_date(bot_id, -1)
+    today_str = _bot_date(bot_id)
+    pending = get_pending(bot_id, yesterday_str)
     if pending:
-        add_tasks(bot_id, [r["text"] for r in pending], today())
+        add_tasks(bot_id, [r["text"] for r in pending], today_str)
         with get_conn() as conn:
             conn.execute(
                 "UPDATE tasks SET status = 'carried_over' "
                 "WHERE bot_id = ? AND date = ? AND status = 'pending'",
-                (bot_id, yesterday()),
+                (bot_id, yesterday_str),
             )
 
 
 # --- Estado del día ---
 
 def set_state(bot_id: int, state: str) -> None:
-    d = today()
+    d = _bot_date(bot_id)
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO day_log (bot_id, date, state) VALUES (?, ?, ?) "
@@ -231,13 +248,13 @@ def get_state(bot_id: int) -> str:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT state FROM day_log WHERE bot_id = ? AND date = ?",
-            (bot_id, today()),
+            (bot_id, _bot_date(bot_id)),
         ).fetchone()
         return row["state"] if row else "idle"
 
 
 def save_morning_plan(bot_id: int, plan_text: str) -> None:
-    d = today()
+    d = _bot_date(bot_id)
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO day_log (bot_id, date, morning_plan) VALUES (?, ?, ?) "
@@ -247,7 +264,7 @@ def save_morning_plan(bot_id: int, plan_text: str) -> None:
 
 
 def save_night_review(bot_id: int, review_text: str) -> None:
-    d = today()
+    d = _bot_date(bot_id)
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO day_log (bot_id, date, night_review) VALUES (?, ?, ?) "
