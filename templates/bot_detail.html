@@ -56,10 +56,14 @@
         <ul class="task-list">
             {% for task in tasks %}
             <li class="task {{ task.status }}">
-                {% if task.status == 'done' %}✓
-                {% elif task.status == 'carried_over' %}↻
-                {% else %}○{% endif %}
-                {{ task.text }}
+                <span>{% if task.status == 'done' %}✓{% elif task.status == 'carried_over' %}↻{% else %}○{% endif %}
+                {{ task.text }}</span>
+                {% if task.status != 'done' %}
+                <button class="btn-check"
+                        hx-post="/bots/{{ bot.id }}/tasks/{{ task.id }}/done"
+                        hx-target="closest li"
+                        hx-swap="outerHTML">✓</button>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>

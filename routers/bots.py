@@ -293,6 +293,27 @@ async def stop_bot(bot_id: int, request: Request):
     return RedirectResponse(url=f"/bots/{bot_id}", status_code=303)
 
 
+@router.post("/bots/{bot_id}/tasks/{task_id}/done", response_class=HTMLResponse)
+async def mark_task_done(bot_id: int, task_id: int, request: Request):
+    user = _get_user(request)
+    if not user:
+        return HTMLResponse("", status_code=401)
+
+    bot = db.get_bot(bot_id)
+    if not _can_access_bot(user, bot):
+        return HTMLResponse("", status_code=404)
+
+    task = db.get_task_by_id(task_id)
+    if not task or task["bot_id"] != bot_id:
+        return HTMLResponse("", status_code=404)
+
+    db.update_task_status(task_id, "done")
+
+    import html as _html
+    text = _html.escape(task["text"])
+    return HTMLResponse(f'<li class="task done">✓ {text}</li>')
+
+
 @router.post("/bots/{bot_id}/trigger/{check_type}")
 async def trigger_checkin(bot_id: int, check_type: str, request: Request):
     user = _get_user(request)

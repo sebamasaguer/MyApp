@@ -213,6 +213,11 @@ def get_pending(bot_id: int, task_date: str | None = None) -> list:
         ).fetchall()
 
 
+def get_task_by_id(task_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+
+
 def update_task_status(task_id: int, status: str) -> None:
     with get_conn() as conn:
         conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (status, task_id))
@@ -234,8 +239,8 @@ def carry_over_pending(bot_id: int) -> None:
 
 # --- Estado del día ---
 
-def set_state(bot_id: int, state: str) -> None:
-    d = _bot_date(bot_id)
+def set_state(bot_id: int, state: str, date: str | None = None) -> None:
+    d = date or _bot_date(bot_id)
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO day_log (bot_id, date, state) VALUES (?, ?, ?) "
@@ -245,12 +250,38 @@ def set_state(bot_id: int, state: str) -> None:
 
 
 def get_state(bot_id: int) -> str:
+    today = _bot_date(bot_id)
     with get_conn() as conn:
         row = conn.execute(
             "SELECT state FROM day_log WHERE bot_id = ? AND date = ?",
-            (bot_id, _bot_date(bot_id)),
+            (bot_id, today),
         ).fetchone()
+        if row and row["state"] != "idle":
+            return row["state"]
+        # Si hoy está idle, verificar si ayer quedó una revisión nocturna pendiente
+        # (usuario respondió después de medianoche)
+        yesterday = _bot_date(bot_id, -1)
+        row_yday = conn.execute(
+            "SELECT state FROM day_log WHERE bot_id = ? AND date = ?",
+            (bot_id, yesterday),
+        ).fetchone()
+        if row_yday and row_yday["state"] == "waiting_night_review":
+            return "waiting_night_review"
         return row["state"] if row else "idle"
+
+
+def get_pending_night_review_date(bot_id: int) -> str | None:
+    """Retorna la fecha de la revisión nocturna pendiente (hoy o ayer), o None."""
+    for delta in (0, -1):
+        d = _bot_date(bot_id, delta)
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT state FROM day_log WHERE bot_id = ? AND date = ?",
+                (bot_id, d),
+            ).fetchone()
+        if row and row["state"] == "waiting_night_review":
+            return d
+    return None
 
 
 def save_morning_plan(bot_id: int, plan_text: str) -> None:
@@ -263,8 +294,8 @@ def save_morning_plan(bot_id: int, plan_text: str) -> None:
         )
 
 
-def save_night_review(bot_id: int, review_text: str) -> None:
-    d = _bot_date(bot_id)
+def save_night_review(bot_id: int, review_text: str, date: str | None = None) -> None:
+    d = date or _bot_date(bot_id)
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO day_log (bot_id, date, night_review) VALUES (?, ?, ?) "

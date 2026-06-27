@@ -120,16 +120,23 @@ async def _process_night_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
     claude = ctx.bot_data["claude"]
     await update.message.reply_text("Cerrando el día...")
 
-    tasks = db.get_tasks(bot_id)
+    review_date = db.get_pending_night_review_date(bot_id)
+    tasks = db.get_tasks(bot_id, review_date) if review_date else db.get_tasks(bot_id)
     tasks_dicts = [dict(t) for t in tasks]
 
+    logger.info("Revisión nocturna bot_id=%s fecha=%s tareas=%s respuesta=%r",
+                bot_id, review_date, [t["id"] for t in tasks_dicts], user_text)
+
     result = claude.parse_night_review(user_text, tasks_dicts)
+
+    logger.info("Resultado revisión bot_id=%s done=%s pending=%s",
+                bot_id, result.get("done", []), result.get("pending", []))
 
     for tid in result.get("done", []):
         db.update_task_status(tid, "done")
 
-    db.save_night_review(bot_id, user_text)
-    db.set_state(bot_id, "idle")
+    db.save_night_review(bot_id, user_text, review_date)
+    db.set_state(bot_id, "idle", review_date)
 
     closing = claude.get_closing_message(
         len(result.get("done", [])), len(result.get("pending", []))

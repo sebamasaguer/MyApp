@@ -177,6 +177,16 @@ Donde done y pending son listas de IDs numéricos de las tareas."""
                 pass
 
         text_lower = user_text.lower()
+        negative_words = {"no", "faltó", "falto", "quedó", "quedo", "pendiente", "sin", "imposible"}
+        all_done_phrases = ("todas", "todo", "sí", "si", "listo", "listas", "completé", "complete",
+                            "realicé", "realice", "hice", "hizo", "cumplí", "cumpli", "terminé",
+                            "termine", "finalicé", "finalice")
+        has_all_done = any(p in text_lower.split() for p in all_done_phrases)
+        has_negative = any(neg in text_lower for neg in negative_words)
+
+        if has_all_done and not has_negative:
+            return {"done": [t["id"] for t in tasks], "pending": []}
+
         done_ids, pending_ids = [], []
         for t in tasks:
             words = [w for w in t["text"].lower().split() if len(w) > 3]
