@@ -350,6 +350,7 @@ async def bot_historial_day(bot_id: int, day_date: str, request: Request):
     tasks = db.get_tasks(bot_id, task_date=day_date)
     return templates.TemplateResponse("_day_tasks.html", {
         "request": request,
+        "bot_id": bot_id,
         "date_label": _format_date_es(day_date),
         "tasks": [dict(t) for t in tasks],
     })
