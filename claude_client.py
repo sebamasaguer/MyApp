@@ -1,4 +1,5 @@
 import json
+import random
 from datetime import date
 
 _VERSES = [
