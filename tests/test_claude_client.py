@@ -39,3 +39,33 @@ def test_morning_message_fallback_includes_verse_of_the_day():
     message = client.get_morning_message([])
     assert ref in message
     assert text in message
+
+
+def test_night_message_fallback_includes_verse_of_the_day():
+    from claude_client import ClaudeClient, _CLOSING_VERSES, _pick_verse
+    ref, text = _pick_verse(_CLOSING_VERSES)
+    client = ClaudeClient()
+    message = client.get_night_message([])
+    assert ref in message
+    assert text in message
+
+
+def test_closing_message_fallback_includes_verse_of_the_day():
+    from claude_client import ClaudeClient, _CLOSING_VERSES, _pick_verse
+    ref, text = _pick_verse(_CLOSING_VERSES)
+    client = ClaudeClient()
+    message = client.get_closing_message(done_count=2, pending_count=1)
+    assert ref in message
+    assert text in message
+
+
+def test_night_and_closing_messages_share_same_verse_same_day():
+    from claude_client import ClaudeClient
+    client = ClaudeClient()
+    night_msg = client.get_night_message([])
+    closing_msg = client.get_closing_message(done_count=0, pending_count=0)
+
+    from claude_client import _CLOSING_VERSES, _pick_verse
+    ref, _ = _pick_verse(_CLOSING_VERSES)
+    assert ref in night_msg
+    assert ref in closing_msg

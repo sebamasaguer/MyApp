@@ -1,5 +1,4 @@
 import json
-import random
 from datetime import date
 
 _VERSES = [
@@ -202,14 +201,16 @@ Texto del usuario: {user_text}"""
         return [l for l in lines if l]
 
     def get_night_message(self, tasks: list[dict]) -> str:
+        verse = _pick_verse(_CLOSING_VERSES)
         if self._use_claude():
             try:
-                return self._night_claude(tasks)
+                return self._night_claude(tasks, verse)
             except Exception:
                 pass
-        return self._night_fallback(tasks)
+        return self._night_fallback(tasks, verse)
 
-    def _night_claude(self, tasks: list[dict]) -> str:
+    def _night_claude(self, tasks: list[dict], verse: tuple[str, str]) -> str:
+        ref, text = verse
         task_section = "\n".join(
             f"- {'✓' if t['status'] == 'done' else '○'} {t['text']}"
             for t in tasks
@@ -221,15 +222,15 @@ Tareas del día:
 {task_section}
 
 Generá un mensaje en español que:
-1. Celebre el esfuerzo del día con un versículo bíblico de gratitud o descanso.
+1. Celebre el esfuerzo del día citando exactamente este versículo bíblico (no elijas otro): {ref} — "{text}"
 2. Muestre la lista de tareas del día.
 3. Pregunte: "¿Qué pudiste hacer hoy? Contame qué tareas completaste y cuáles quedaron pendientes."
 
 Tono: tranquilo, reflexivo, espiritual. Sin emojis excesivos."""
         return self._ask(prompt)
 
-    def _night_fallback(self, tasks: list[dict]) -> str:
-        ref, verse = random.choice(_CLOSING_VERSES)
+    def _night_fallback(self, tasks: list[dict], verse: tuple[str, str]) -> str:
+        ref, text = verse
         task_section = "\n".join(
             f"{'✓' if t['status'] == 'done' else '○'} {t['text']}"
             for t in tasks
@@ -237,7 +238,7 @@ Tono: tranquilo, reflexivo, espiritual. Sin emojis excesivos."""
 
         return (
             f"Buenas noches. Es momento de descansar y revisar el día.\n\n"
-            f"{ref}\n\"{verse}\"\n\n"
+            f"{ref}\n\"{text}\"\n\n"
             f"Estas fueron tus tareas de hoy:\n{task_section}\n\n"
             f"¿Qué pudiste hacer hoy? Contame qué tareas completaste y cuáles quedaron pendientes."
         )
@@ -285,13 +286,15 @@ Donde done y pending son listas de IDs numéricos de las tareas."""
         return {"done": done_ids, "pending": pending_ids}
 
     def get_closing_message(self, done_count: int, pending_count: int) -> str:
+        verse = _pick_verse(_CLOSING_VERSES)
+        ref, text = verse
         if self._use_claude():
             try:
                 prompt = f"""El usuario terminó su revisión nocturna. Completó {done_count} tarea(s) y dejó {pending_count} pendiente(s).
 
 Generá un mensaje de cierre del día en español con:
 1. Una palabra de gratitud y aliento basada en el esfuerzo realizado.
-2. Un versículo bíblico relacionado con el descanso o la perseverancia.
+2. Citá exactamente este versículo bíblico relacionado con el descanso o la perseverancia (no elijas otro): {ref} — "{text}"
 3. Una frase de buenas noches.
 
 Tono: cálido, espiritual, tranquilizador. Máximo 5 oraciones."""
@@ -299,7 +302,6 @@ Tono: cálido, espiritual, tranquilizador. Máximo 5 oraciones."""
             except Exception:
                 pass
 
-        ref, verse = random.choice(_CLOSING_VERSES)
         if done_count == 0:
             balance = "Cada día es un nuevo comienzo. Mañana tenés otra oportunidad."
         elif pending_count == 0:
@@ -309,6 +311,6 @@ Tono: cálido, espiritual, tranquilizador. Máximo 5 oraciones."""
 
         return (
             f"{balance}\n\n"
-            f"{ref}\n\"{verse}\"\n\n"
+            f"{ref}\n\"{text}\"\n\n"
             f"Descansá bien. Mañana a las 8 seguimos. Buenas noches."
         )
