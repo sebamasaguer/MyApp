@@ -123,14 +123,16 @@ class ClaudeClient:
         return response.content[0].text.strip()
 
     def get_morning_message(self, pending_from_yesterday: list[str]) -> str:
+        verse = _pick_verse(_VERSES)
         if self._use_claude():
             try:
-                return self._morning_claude(pending_from_yesterday)
+                return self._morning_claude(pending_from_yesterday, verse)
             except Exception:
                 pass
-        return self._morning_fallback(pending_from_yesterday)
+        return self._morning_fallback(pending_from_yesterday, verse)
 
-    def _morning_claude(self, pending_from_yesterday: list[str]) -> str:
+    def _morning_claude(self, pending_from_yesterday: list[str], verse: tuple[str, str]) -> str:
+        ref, text = verse
         pending_section = ""
         if pending_from_yesterday:
             items = "\n".join(f"- {t}" for t in pending_from_yesterday)
@@ -140,7 +142,7 @@ class ClaudeClient:
 Generá un mensaje de buenos días en español con estas secciones, sin títulos ni markdown, solo texto fluido:
 
 1. Un saludo cálido y espiritual para comenzar el día.
-2. Un versículo bíblico relevante (cita el libro, capítulo y versículo).
+2. Citá exactamente este versículo bíblico (no elijas otro): {ref} — "{text}"
 3. Una reflexión breve (2-3 oraciones) sobre ese versículo aplicado a la vida diaria.
 4. Una frase motivadora corta al final.
 {pending_section}
@@ -150,8 +152,8 @@ Terminá preguntando: "¿Qué querés hacer hoy? Escribime tus tareas, una por l
 Tono: espiritual, cálido, esperanzador. Sin emojis excesivos."""
         return self._ask(prompt)
 
-    def _morning_fallback(self, pending_from_yesterday: list[str]) -> str:
-        ref, verse = random.choice(_VERSES)
+    def _morning_fallback(self, pending_from_yesterday: list[str], verse: tuple[str, str]) -> str:
+        ref, text = verse
         pending_section = ""
         if pending_from_yesterday:
             items = "\n".join(f"- {t}" for t in pending_from_yesterday)
@@ -159,7 +161,7 @@ Tono: espiritual, cálido, esperanzador. Sin emojis excesivos."""
 
         return (
             f"Buenos días. Que este nuevo día sea una oportunidad para crecer y servir.\n\n"
-            f"{ref}\n\"{verse}\"\n\n"
+            f"{ref}\n\"{text}\"\n\n"
             f"Cada mañana es un regalo. Enfocá tu energía en lo que depende de vos, "
             f"y encomendá lo demás a Dios.\n\n"
             f"Que tengas un día bendecido y productivo."

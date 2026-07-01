@@ -30,3 +30,12 @@ def test_pick_verse_works_with_different_pool_sizes():
     from claude_client import _pick_verse, _CLOSING_VERSES
     ref, text = _pick_verse(_CLOSING_VERSES, date(2026, 7, 1))
     assert (ref, text) in _CLOSING_VERSES
+
+
+def test_morning_message_fallback_includes_verse_of_the_day():
+    from claude_client import ClaudeClient, _VERSES, _pick_verse
+    ref, text = _pick_verse(_VERSES)
+    client = ClaudeClient()  # sin api_key -> modo fallback
+    message = client.get_morning_message([])
+    assert ref in message
+    assert text in message
